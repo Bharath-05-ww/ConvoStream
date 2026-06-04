@@ -128,6 +128,7 @@
       let privateChats ={};
       const publicMessages = [];
       let unreadCounts = {};
+      let lastMessages = {};
       let myUserId = null;
       let publicUnreadCount = 0;
       let isPublicChatSelected = true;
@@ -280,7 +281,12 @@
                             ${initial}
                         </div>
 
-                        <span>${user.username}</span>
+                       <div class="user-info">
+                          <div class="user-name">${user.username}</div>
+                          <div class="last-message">
+                              ${lastMessages[user.id] || 'No messages yet'}
+                          </div>
+                       </div>
 
                         ${
                             unreadCounts[user.id]
@@ -329,6 +335,12 @@
                     });
 
                 });
+                if(rows.length > 0){
+                    const lastRow = rows[rows.length - 1];
+
+                    lastMessages[selectedUserId] = lastRow.content;
+                    renderOnlineUsers();
+                }
 
             }
         );
@@ -443,6 +455,8 @@
                   isPrivate: true,
                   recipient: selectedUserName
               });
+              // lastMessages[selectedUserId] = msgVal;
+              // renderOnlineUsers();
               
               appendMessage({
                 sender: username,
@@ -522,6 +536,8 @@
        
 
         socket.on('private message', (data) => {
+          // lastMessages[data.fromId] = data.message;
+          // renderOnlineUsers();
           if(data.fromId !== selectedUserId){
             unreadCounts[data.fromId] = (unreadCounts[data.fromId] || 0)+1;
             renderOnlineUsers();
