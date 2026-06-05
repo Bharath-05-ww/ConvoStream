@@ -494,10 +494,13 @@
                   messageId: messageId
               });
               socket.emit('private message', {
+
                 to: selectedUserId,
                 message: msgVal,
                 messageId:messageId
               });
+              lastMessages[selectedUserId] = msgVal;
+              renderOnlineUsers();
 
               if (!privateChats[selectedUserId]) {
                   privateChats[selectedUserId] = [];
@@ -594,6 +597,8 @@
        
 
         socket.on('private message', (data) => {
+          lastMessages[data.fromId] = data.message;
+          renderOnlineUsers();
           
           socket.emit('message delivered',{
               messageId: data.messageId,
@@ -645,6 +650,24 @@
 
       socket.on('user identity',(data)=>{
           myUserId = data.userId;
+          socket.emit('load previews',(rows)=>{
+
+          rows.forEach(row=>{
+
+            const otherUserId =
+                row.senderId === myUserId
+                ? row.receiverId
+                : row.senderId;
+
+            if(!lastMessages[otherUserId]){
+                lastMessages[otherUserId] = row.content;
+            }
+
+        });
+
+        renderOnlineUsers();
+
+    });
       });
 
       socket.on('message delivered',(data)=>{

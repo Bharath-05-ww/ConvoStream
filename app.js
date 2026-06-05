@@ -149,6 +149,21 @@ io.on('connection',async (socket)=>{
         socket.broadcast.emit('chat message',data);
         callback();
     });
+    socket.on('load previews', async (callback)=>{
+
+        const rows = await db.all(`
+            SELECT *
+            FROM private_messages
+            WHERE senderId=? OR receiverId=?
+            ORDER BY id DESC
+        `,
+        socket.userId,
+        socket.userId
+        );
+
+        callback(rows);
+
+   });
 
     socket.on('typing',()=>{
         console.log(socket.username,'typing');
