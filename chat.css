@@ -764,3 +764,9 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.message-status{
+    margin-left:6px;
+    font-size:12px;
+    opacity:0.7;
+    color:#888;
+}

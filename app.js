@@ -48,13 +48,15 @@ async function main(){
   `);
   await db.exec(`
         CREATE TABLE IF NOT EXISTS private_messages(
+            messageId TEXT,
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender TEXT,
             senderId TEXT,
             receiver TEXT,
             receiverId TEXT,
             content TEXT,
-            timestamp TEXT
+            timestamp TEXT,
+            status TEXT DEFAULT 'sent'
         )
 `);
 await db.exec(`
@@ -73,8 +75,7 @@ app.get('/',(req,res)=>{
 const onlineUsers = new Map();
 io.on('connection',async (socket)=>{
     
-    const username =
-    socket.handshake.auth.username || "Anonymous";
+    const username =socket.handshake.auth.username || "Anonymous";
 
     let user = await db.get(
         `SELECT * FROM users WHERE username=?`,
@@ -126,7 +127,7 @@ io.on('connection',async (socket)=>{
             });
         try{
             result = await db.run('INSERT INTO messages (username,content,client_offset,timestamp) VALUES (?,?,?,?)',socket.username,msg,clientOffset,msgtime);
-            console.log("Db complete",Date.now());
+          
         }
         catch(e){
             if(e.errno === 19){ 
@@ -158,6 +159,7 @@ io.on('connection',async (socket)=>{
         socket.broadcast.emit('stop typing',socket.username);
     });
     socket.on('private message',async (data)=>{
+        console.log("Server received:", data);
         const timestamp = new Date().toLocaleTimeString([],{
             hour:'2-digit',
             minute:'2-digit'
@@ -166,26 +168,30 @@ io.on('connection',async (socket)=>{
         await db.run(
         `
             INSERT INTO private_messages
-            (sender,senderId,receiver,receiverId,content,timestamp)
-            VALUES(?,?,?,?,?,?)
+            (messageId,sender,senderId,receiver,receiverId,content,timestamp,status)
+            VALUES(?,?,?,?,?,?,?,?)
             `,
+            data.messageId,
             socket.username,
             socket.userId,
             receiverUser?.username || "Unknown",
             data.to,
             data.message,
-            timestamp
+            timestamp,
+            'sent'
         );
-        const allRows = await db.all(`
-            SELECT * FROM private_messages
-            `);
+        // const allRows = await db.all(`
+        //     SELECT * FROM private_messages
+        //     `);
 
         
         if(receiverUser){
             io.to(receiverUser.socketId).emit('private message',{
+                // id: data.id,
                 from: socket.username,
                 message: data.message,
-                fromId: socket.userId
+                fromId: socket.userId,
+                messageId:data.messageId
             });
 }
         socket.emit('private message',{
@@ -215,6 +221,44 @@ io.on('connection',async (socket)=>{
         
         callback(rows);
     });
+
+    socket.on('message delivered',async (data)=>{
+        await db.run(
+            `UPDATE private_messages
+            SET status='delivered'
+            WHERE messageId=?`,
+            data.messageId
+        );
+
+        const senderUser =onlineUsers.get(data.senderId);
+        if(senderUser){
+            io.to(senderUser.socketId).emit('message delivered',{
+                messageId: data.messageId
+            });
+        }
+
+        });
+    socket.on('messages seen',async (data)=>{
+        await db.run(
+            `UPDATE private_messages
+            SET status='seen'
+            WHERE senderId=?
+            AND receiverId=?`,
+            data.userId,
+            socket.userId
+        );
+
+        const otherUser =onlineUsers.get(data.userId);
+
+        if(otherUser){
+
+            io.to(otherUser.socketId)
+            .emit('messages seen',{
+                seenBy: socket.userId
+            });
+        }
+
+});
 
    
     

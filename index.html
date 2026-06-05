@@ -173,7 +173,7 @@
       }
 
       // Render custom messages to message feed
-      function appendMessage({ sender, text, time, isSelf, isPrivate, recipient }) {
+      function appendMessage({ sender, text, time, isSelf, isPrivate, recipient , status}) {
         const row = document.createElement('div');
         row.className = `message-row ${isSelf ? 'self' : 'peer'}`;
 
@@ -201,9 +201,28 @@
         const timeSpan = document.createElement('span');
         timeSpan.className = 'message-time';
         timeSpan.textContent = time;
-
         info.appendChild(senderSpan);
         info.appendChild(timeSpan);
+        if(isSelf && status){
+
+            const statusSpan =document.createElement('span');
+
+            statusSpan.className ='message-status';
+
+            if(status === 'seen'){
+                statusSpan.textContent = 'Seen';
+            }
+            else if(status === 'delivered'){
+                statusSpan.textContent = '✓✓';
+            }
+            else{
+                statusSpan.textContent = '✓';
+            }
+
+            info.appendChild(statusSpan);
+        }
+
+        
         bodyContainer.appendChild(info);
 
         // DM Tag if private
@@ -254,8 +273,8 @@
 
             const peerUsers =
                currentUsers.filter(
-    user => user.id !== myUserId
-);
+                    user => user.id !== myUserId
+                );
 
             onlineCountTitle.textContent =
                 `Online (${currentUsers.length})`;
@@ -303,6 +322,18 @@
             }).join('');
         }
 
+        function renderCurrentChat(){
+
+            if(!selectedUserId) return;
+
+            messages.innerHTML = '';
+
+            (privateChats[selectedUserId] || []).forEach(msg=>{
+                appendMessage(msg);
+            });
+
+        }
+
       // UI Selection for Users
       function selectUser(id, userNameVal) {
         
@@ -311,7 +342,15 @@
           selectedUserId = id;
           selectedUserName = userNameVal;
           isPublicChatSelected = false;
+          const hadUnread = unreadCounts[id] > 0;
           delete unreadCounts[id];
+          if(hadUnread){
+
+              socket.emit('messages seen',{
+                  userId:id
+              });
+
+          }
           renderOnlineUsers();
           messages.innerHTML = '';
           socket.emit(
@@ -321,18 +360,25 @@
             },
             (rows)=>{
 
-                messages.innerHTML='';
+                privateChats[selectedUserId] = [];
 
                 rows.forEach(row=>{
-
-                    appendMessage({
-                        sender: row.sender,
-                        text: row.content,
-                        time: row.timestamp,
-                        isSelf: row.senderId === myUserId,
-                        isPrivate: true,
-                        recipient: row.receiver
-                    });
+                     const msg = {
+                          id: row.id,
+                          sender: row.sender,
+                          text: row.content,
+                          time: row.timestamp,
+                          isSelf: row.senderId === myUserId,
+                          isPrivate: true,
+                          recipient: row.receiver,
+                          status: row.status
+                      };
+                      if(!privateChats[selectedUserId]){
+                            privateChats[selectedUserId] = [];
+                      }
+                      privateChats[selectedUserId].push(msg);
+                      appendMessage(msg);
+                 
 
                 });
                 if(rows.length > 0){
@@ -344,9 +390,12 @@
 
             }
         );
-        (privateChats[id] || []).forEach(msg => {
-          appendMessage(msg);
-        })
+        
+        // messages.innerHTML='';
+        // (privateChats[id] || []).forEach(msg => {
+        //   appendMessage(msg);
+        // })
+        renderCurrentChat();
         // Update header content
         chatHeader.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;">
@@ -435,12 +484,19 @@
           if (input.value.trim()) {
             const msgVal = input.value;
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const messageId = crypto.randomUUID();
             
             if (selectedUserId) {
               // Direct Message (Private)
+              console.log("Sending:", {
+                  to: selectedUserId,
+                  message: msgVal,
+                  messageId: messageId
+              });
               socket.emit('private message', {
                 to: selectedUserId,
-                message: msgVal
+                message: msgVal,
+                messageId:messageId
               });
 
               if (!privateChats[selectedUserId]) {
@@ -448,12 +504,14 @@
               }
 
               privateChats[selectedUserId].push({
+                  id: messageId,
                   sender: username,
                   text: msgVal,
                   time: time,
                   isSelf: true,
                   isPrivate: true,
-                  recipient: selectedUserName
+                  recipient: selectedUserName,
+                  status:"sent"
               });
               // lastMessages[selectedUserId] = msgVal;
               // renderOnlineUsers();
@@ -536,12 +594,12 @@
        
 
         socket.on('private message', (data) => {
-          // lastMessages[data.fromId] = data.message;
-          // renderOnlineUsers();
-          if(data.fromId !== selectedUserId){
-            unreadCounts[data.fromId] = (unreadCounts[data.fromId] || 0)+1;
-            renderOnlineUsers();
-          }
+          
+          socket.emit('message delivered',{
+              messageId: data.messageId,
+              senderId: data.fromId
+          });
+         
           if(!privateChats[data.fromId]){
             privateChats[data.fromId] =[];
           }
@@ -557,12 +615,28 @@
             
           });
           if(selectedUserId === data.fromId){
-            appendMessage(privateChats[data.fromId][privateChats[data.fromId].length - 1]);
-          }
-          
-        });
 
-         socket.on('online users', (users) => {
+        
+                socket.emit('messages seen',{
+                    userId: data.fromId
+                });
+
+          appendMessage(
+              privateChats[data.fromId][privateChats[data.fromId].length - 1]
+          );
+
+          } else {
+
+            
+              unreadCounts[data.fromId] =
+                  (unreadCounts[data.fromId] || 0) + 1;
+
+              renderOnlineUsers();
+          }
+                
+              });
+
+          socket.on('online users', (users) => {
           console.log(users);
           currentUsers = users;
           renderOnlineUsers();
@@ -572,6 +646,41 @@
       socket.on('user identity',(data)=>{
           myUserId = data.userId;
       });
+
+      socket.on('message delivered',(data)=>{
+            Object.values(privateChats).forEach(chat=>{
+
+                const msg = chat.find(
+                    m => m.id === data.messageId
+                );
+
+                if(msg){
+                    msg.status = "delivered";
+                }
+
+            });
+
+            renderCurrentChat();
+
+    });
+
+    socket.on('messages seen',(data)=>{
+
+        const chat =privateChats[data.seenBy];
+
+        if(!chat) return;
+
+        chat.forEach(msg=>{
+
+            if(msg.isSelf){
+                msg.status = "seen";
+            }
+
+        });
+
+        renderCurrentChat();
+
+});
 
         // Connection toggle button action
         toggleButton.addEventListener('click', (e) => {
