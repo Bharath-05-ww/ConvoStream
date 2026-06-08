@@ -275,6 +275,44 @@ io.on('connection',async (socket)=>{
 
 });
 
+    socket.on(
+        'generate summary',
+        async(data,callback)=>{
+
+            const rows = await db.all(
+            `
+            SELECT content
+            FROM private_messages
+            WHERE
+            (senderId=? AND receiverId=?)
+            OR
+            (senderId=? AND receiverId=?)
+            ORDER BY id
+            `,
+            socket.userId,
+            data.userId,
+            data.userId,
+            socket.userId
+            );
+
+            const summary = `
+                        Total Messages: ${rows.length}
+
+                        First Message:
+                        ${rows[0]?.content}
+
+                        Last Message:
+                        ${rows[rows.length - 1]?.content}
+
+                        Conversation Duration:
+                        ${rows.length} exchanges
+                        `;
+
+            callback(summary);
+
+        }
+    );
+
    
     
     socket.on('disconnect',()=>{

@@ -91,6 +91,10 @@
             </div>
             <div class="chat-status" id="chatSubHeader">Public channel for general discussion</div>
           </div>
+           <button id="summaryBtn">
+              ✨ Summarize
+          </button>
+         
         </div>
         
         <!-- Messages Board -->
@@ -114,6 +118,20 @@
         </form>
 
       </div>
+
+      <div id="summaryModal" class="summary-modal">
+        <div class="summary-content">
+
+            <h3>🤖 Conversation Summary</h3>
+
+            <div id="summaryText"></div>
+
+            <button id="closeSummaryBtn">
+                Close
+            </button>
+
+        </div>
+    </div>
 
     </div>
 
@@ -152,6 +170,8 @@
       const onlineCountTitle = document.getElementById('onlineCountTitle');
       const toggleButton = document.getElementById('toggle-btn');
       const publicUnreadBadge = document.getElementById("publicUnreadBadge");
+      const summaryBtn = document.getElementById('summaryBtn');
+      const closeSummaryBtn = document.getElementById('closeSummaryBtn');      
 
       // Colors generator for user avatars
       function getAvatarColor(name) {
@@ -171,6 +191,32 @@
         ];
         return colors[Math.abs(hash) % colors.length];
       }
+
+      summaryBtn.addEventListener('click',()=>{
+
+          if(!selectedUserId){
+              alert('Select a user first');
+              return;
+          }
+
+          socket.emit(
+              'generate summary',
+              {
+                  userId:selectedUserId
+              },
+              (summary)=>{
+                  summaryText.textContent = summary;
+                  summaryModal.style.display = 'flex';
+
+              }
+          );
+
+      });
+      closeSummaryBtn.addEventListener('click',()=>{
+
+          summaryModal.style.display = 'none';
+
+      });
 
       // Render custom messages to message feed
       function appendMessage({ sender, text, time, isSelf, isPrivate, recipient , status}) {
@@ -336,7 +382,7 @@
 
       // UI Selection for Users
       function selectUser(id, userNameVal) {
-        
+          summaryBtn.style.display = "block";
           if (id === myUserId) return;
 
           selectedUserId = id;
@@ -421,6 +467,7 @@
 
       // Public Channel click handler
       publicChatBtn.addEventListener('click', () => {
+        summaryBtn.style.display = "none";
         selectedUserId = null;
         selectedUserName = null;
         publicUnreadCount = 0;
