@@ -6,9 +6,9 @@ const { createServer } = require('node:http')
 const { join } = require('node:path')
 const sqlite3  = require('sqlite3').verbose();
 const { open } = require('sqlite');
-const { availableParallelism } = require('node:os');
-const cluster = require('node:cluster')
-const { createAdapter, setupPrimary } = require('@socket.io/cluster-adapter');
+// const { availableParallelism } = require('node:os');
+// const cluster = require('node:cluster')
+// const { createAdapter, setupPrimary } = require('@socket.io/cluster-adapter');
 const { v4: uuidv4 } = require('uuid');
 
 const genAI = new GoogleGenerativeAI(
@@ -20,22 +20,22 @@ const model = genAI.getGenerativeModel({
 });
 
 
-if(cluster.isPrimary){
-    const numCPU = availableParallelism(); 
-    for(let i=0;i<numCPU;i++){
-        cluster.fork({
-            PORT:3000+i
-        });
-    }
-    return setupPrimary();
-}
+// if(cluster.isPrimary){
+//     const numCPU = availableParallelism(); 
+//     for(let i=0;i<numCPU;i++){
+//         cluster.fork({
+//             PORT:3000+i
+//         });
+//     }
+//     return setupPrimary();
+// }
 
 async function main(){
     const app = express()
     const server = createServer(app);
     const io = new Server(server,{
         connectionStateRecovery:{},
-        adapter:createAdapter()
+        // adapter:createAdapter()
     });
 
     const port = process.env.PORT || 3000;
