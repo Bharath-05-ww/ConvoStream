@@ -1,4 +1,6 @@
 const { Server } = require("socket.io");
+require('dotenv').config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const express = require('express')
 const { createServer } = require('node:http')
 const { join } = require('node:path')
@@ -8,6 +10,15 @@ const { availableParallelism } = require('node:os');
 const cluster = require('node:cluster')
 const { createAdapter, setupPrimary } = require('@socket.io/cluster-adapter');
 const { v4: uuidv4 } = require('uuid');
+
+const genAI = new GoogleGenerativeAI(
+    process.env.GEMINI_API_KEY
+);
+
+const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash"
+});
+
 
 if(cluster.isPrimary){
     const numCPU = availableParallelism(); 
@@ -278,40 +289,42 @@ io.on('connection',async (socket)=>{
     socket.on(
         'generate summary',
         async(data,callback)=>{
-
-            const rows = await db.all(
-            `
-            SELECT content
-            FROM private_messages
-            WHERE
-            (senderId=? AND receiverId=?)
-            OR
-            (senderId=? AND receiverId=?)
-            ORDER BY id
-            `,
-            socket.userId,
-            data.userId,
-            data.userId,
-            socket.userId
-            );
-
-            const summary = `
-                        Total Messages: ${rows.length}
-
-                        First Message:
-                        ${rows[0]?.content}
-
-                        Last Message:
-                        ${rows[rows.length - 1]?.content}
-
-                        Conversation Duration:
-                        ${rows.length} exchanges
-                        `;
-
-            callback(summary);
-
-        }
-    );
+        
+            console.log("Fetching messages");
+              const rows = await db.all(
+                    `
+                    SELECT content
+                    FROM private_messages
+                    WHERE
+                    (senderId=? AND receiverId=?)
+                    OR
+                    (senderId=? AND receiverId=?)
+                    ORDER BY id
+                    `,
+                    socket.userId,
+                    data.userId,
+                    data.userId,
+                    socket.userId
+                    );
+           
+            const chatText = rows.map(row => row.content).join('\n');
+             
+            const shortChat = chatText.slice(0,100);
+            
+            const prompt = `Summarize this chat conversation in 3-5 bullet points.${shortChat}`;
+            
+          try {
+                const result = await model.generateContent(prompt);
+                callback(result.response.text());
+            } catch (err) {
+                console.error(err);
+                callback(
+                "AI Summary is temporarily unavailable. Please try again later."
+                );
+            }
+                    
+                    }
+        );
 
    
     

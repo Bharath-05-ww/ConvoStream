@@ -4,7 +4,9 @@
   "description": "my first socket.io app",
   "type": "commonjs",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@socket.io/cluster-adapter": "^0.3.0",
+    "dotenv": "^17.4.2",
     "express": "^4.22.2",
     "socket.io": "^4.8.3",
     "sqlite": "^5.1.1",
