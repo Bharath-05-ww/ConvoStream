@@ -10,14 +10,14 @@
     "express": "^4.22.2",
     "socket.io": "^4.8.3",
     "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1",
+    "sqlite3": "^5.1.7",
     "uuid": "^14.0.0"
   },
   "main": "app.js",
   "scripts": {
-  "start": "node app.js",
-  "test": "echo \"Error: no test specified\" && exit 1"
-},
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"
